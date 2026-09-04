@@ -1,15 +1,15 @@
-package main 
+package main
 
 import (
+	"bufio"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
-	"encoding/json"
-	"bufio"
 	"os"
-	"strings"
 	"strconv"
+	"strings"
 )
 
 type Weather struct {
@@ -20,20 +20,20 @@ type Weather struct {
 
 type GeoResponse struct {
 	Results []struct {
-		Admin1 string `json:"admin1"`
-		Name string `json:"name"`
-		Latitude float64 `json:"latitude"`
-		Longitude float64 `json:"longitude"`
-		Country string `json:"country"`
-		Population int `json:"population"`
+		Admin1     string  `json:"admin1"`
+		Name       string  `json:"name"`
+		Latitude   float64 `json:"latitude"`
+		Longitude  float64 `json:"longitude"`
+		Country    string  `json:"country"`
+		Population int     `json:"population"`
 	} `json:"results"`
 }
-
 
 func main() {
 	reader := bufio.NewReader(os.Stdin)
 
 	fmt.Print("Введите город: ")
+
 	city, err := reader.ReadString('\n')
 	if err != nil {
 		fmt.Println("Ошибка ввода:", err)
@@ -42,12 +42,13 @@ func main() {
 
 	city = strings.TrimSpace(city)
 
-	geoURL := "https://geocoding-api.open-meteo.com/v1/search?name=" + url.QueryEscape(city) + "&count=10&language=ru"
+	geoURL := "https://geocoding-api.open-meteo.com/v1/search?name=" +
+		url.QueryEscape(city) +
+		"&count=10&language=ru"
 
-	
 	resp, err := http.Get(geoURL)
 	if err != nil {
-		fmt.Println("Ошибка запроса", err)
+		fmt.Println("Ошибка запроса:", err)
 		return
 	}
 
@@ -60,9 +61,10 @@ func main() {
 	}
 
 	var geo GeoResponse
+
 	err = json.Unmarshal(body, &geo)
 	if err != nil {
-		fmt.Println("Ошибка json:", err)
+		fmt.Println("Ошибка JSON:", err)
 		return
 	}
 
@@ -71,11 +73,18 @@ func main() {
 		return
 	}
 
+	fmt.Println("\nНайденные города:")
+
 	for i, place := range geo.Results {
-		fmt.Println(i, place.Name, place.Country)
+		fmt.Println(
+			i,
+			place.Name,
+			place.Admin1,
+			place.Country,
+		)
 	}
 
-	fmt.Print("Выберите город: ")
+	fmt.Print("\nВыберите город: ")
 
 	choiceText, err := reader.ReadString('\n')
 	if err != nil {
@@ -91,32 +100,30 @@ func main() {
 		return
 	}
 
-	place := geo.Results[choice]
-
-
-	// for _, result := range geo.Results {
-	// 	if result.Population > place.Population {
-	// 		place = result
-	// 	}
-	// }
-
-	// fmt.Println("Пользователь ввёл:", city)
-	// fmt.Println("API нашёл:", place.Name)
-	// fmt.Println("Страна:", place.Country)
-
-	weatherURL := fmt.Sprintf("https://api.open-meteo.com/v1/forecast?latitude=%f&longitude=%f&current=temperature_2m", place.Latitude, place.Longitude)
-
-	wresp, err := http.Get(weatherURL)
-	if err != nil {
-		fmt.Println("Ошибка запроса", err)
+	if choice < 0 || choice >= len(geo.Results) {
+		fmt.Println("Такого номера города нет")
 		return
 	}
 
-	defer resp.Body.Close()
+	place := geo.Results[choice]
+
+	weatherURL := fmt.Sprintf(
+		"https://api.open-meteo.com/v1/forecast?latitude=%f&longitude=%f&current=temperature_2m",
+		place.Latitude,
+		place.Longitude,
+	)
+
+	wresp, err := http.Get(weatherURL)
+	if err != nil {
+		fmt.Println("Ошибка запроса погоды:", err)
+		return
+	}
+
+	defer wresp.Body.Close()
 
 	wbody, err := io.ReadAll(wresp.Body)
 	if err != nil {
-		fmt.Println("Ошибка чтения", err)
+		fmt.Println("Ошибка чтения погоды:", err)
 		return
 	}
 
@@ -128,6 +135,9 @@ func main() {
 		return
 	}
 
-	fmt.Printf("Температура в %s: %.1f °C\n", place.Name, weather.Current.Temperature)
-
+	fmt.Printf(
+		"\nТемпература в %s: %.1f °C\n",
+		place.Name,
+		weather.Current.Temperature,
+	)
 }
